@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Video Stream Controller</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #1c1e21;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        select, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+        }
+        .custom-input {
+            display: none; /* Hide custom input fields by default */
+            margin-top: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .video-container {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        img {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            background-color: #000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Video Stream Control Panel</h1>
+        <form id="control-form" method="get" action="{{ url_for('index') }}">
+            <div class="control-group">
+                <label for="device-select">Select Device</label>
+                <select id="device-select" name="device">
+                    {% for device_id, device_name in cameras.items() %}
+                        <option value="{{ device_id }}" {% if device_id == selected_device %}selected{% endif %}>
+                            {{ device_name }}
+                        </option>
+                    {% endfor %}
+                    <option value="custom" {% if selected_device is none %}selected{% endif %}>Custom Device ID...</option>
+                </select>
+                <div id="custom-device-input" class="custom-input">
+                    <label for="custom-device-id">Custom Device ID:</label>
+                    <input type="number" id="custom-device-id" placeholder="e.g., 1">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="resolution-select">Select Resolution</label>
+                <select id="resolution-select" name="resolution">
+                    {% for res in resolutions %}
+                        <option value="{{ res }}" {% if res == selected_res %}selected{% endif %}>{{ res }}</option>
+                    {% endfor %}
+                    <option value="custom">Custom Resolution...</option>
+                </select>
+                <div id="custom-resolution-input" class="custom-input">
+                    <label for="custom-width">Width:</label>
+                    <input type="number" id="custom-width" placeholder="e.g., 1920">
+                    <label for="custom-height" style="margin-top: 5px;">Height:</label>
+                    <input type="number" id="custom-height" placeholder="e.g., 1080">
+                </div>
+            </div>
+
+            <button type="submit">Apply and Stream</button>
+        </form>
+    </div>
+
+    <div class="video-container">
+        {% if selected_device is not none and selected_res %}
+            <h2>Live Feed (Device: {{ selected_device }}, Resolution: {{ selected_res }})</h2>
+            <img src="{{ url_for('video_feed', device=selected_device, resolution=selected_res) }}" alt="Live Video Stream">
+        {% endif %}
+    </div>
+
+    <script>
+        // Get all DOM elements that need to be manipulated
+        const deviceSelect = document.getElementById('device-select');
+        const customDeviceInput = document.getElementById('custom-device-input');
+        const customDeviceId = document.getElementById('custom-device-id');
+
+        const resolutionSelect = document.getElementById('resolution-select');
+        const customResolutionInput = document.getElementById('custom-resolution-input');
+        const customWidth = document.getElementById('custom-width');
+        const customHeight = document.getElementById('custom-height');
+        
+        const controlForm = document.getElementById('control-form');
+
+        // --- Event Listeners ---
+
+        // Listen for changes on the device dropdown menu
+        deviceSelect.addEventListener('change', function() {
+            // If 'custom' is selected, show the custom input box; otherwise, hide it
+            customDeviceInput.style.display = (this.value === 'custom') ? 'block' : 'none';
+        });
+
+        // Listen for changes on the resolution dropdown menu
+        resolutionSelect.addEventListener('change', function() {
+            customResolutionInput.style.display = (this.value === 'custom') ? 'block' : 'none';
+        });
+
+        // Listen for the form's submit event
+        controlForm.addEventListener('submit', function(event) {
+            // Prevent the form's default submission behavior
+            event.preventDefault();
+
+            let deviceValue = deviceSelect.value;
+            let resolutionValue = resolutionSelect.value;
+
+            // If a custom device is selected, get the value from the input box
+            if (deviceValue === 'custom') {
+                deviceValue = customDeviceId.value;
+                if (!deviceValue) { // Simple validation
+                    alert('Please enter a custom device ID!');
+                    return;
+                }
+            }
+            
+            // If a custom resolution is selected, concatenate the width and height
+            if (resolutionValue === 'custom') {
+                const width = customWidth.value;
+                const height = customHeight.value;
+                if (!width || !height) {
+                    alert('Please enter a custom width and height!');
+                    return;
+                }
+                resolutionValue = `${width}x${height}`;
+            }
+
+            // Build a new URL and navigate to it, which sends a GET request with parameters to the backend
+            const url = new URL(window.location.href);
+            url.searchParams.set('device', deviceValue);
+            url.searchParams.set('resolution', resolutionValue);
+            window.location.href = url.toString();
+        });
+
+        // --- Execute on page load ---
+
+        // On page load, decide whether to show the custom input boxes based on the dropdowns' current values
+        // This ensures that if 'custom' was previously selected, the input box remains visible after a page refresh
+        if (deviceSelect.value === 'custom') {
+            customDeviceInput.style.display = 'block';
+        }
+        if (resolutionSelect.value === 'custom') {
+            customResolutionInput.style.display = 'block';
+        }
+    </script>
+
+</body>
+</html>
